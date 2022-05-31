@@ -1,4 +1,4 @@
-load("@//:deps.bzl", "CYCLONEDDS_VERSION")
+load("@com_github_camearle20_ros2bazel//ros2:repositories.bzl", "ECLIPSE_CYCLONEDDS_VERSION")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 
 # ddsrt
@@ -126,6 +126,7 @@ _ddsrt_posix_srcs = [
     "src/ddsrt/src/sync/posix/sync.c",
     "src/ddsrt/src/threads/posix/threads.c",
     "src/ddsrt/src/rusage/posix/rusage.c",
+    "src/ddsrt/src/heap/posix/heap.c"
 ]
 
 _ddsrt_linux_srcs = [
@@ -206,10 +207,10 @@ _ddsrt_version_content = """
 
 #endif
 """.format(
-    major = CYCLONEDDS_VERSION.split(".")[0],
-    minor = CYCLONEDDS_VERSION.split(".")[1],
-    patch = CYCLONEDDS_VERSION.split(".")[2],
-    version = CYCLONEDDS_VERSION,
+    major = ECLIPSE_CYCLONEDDS_VERSION.split(".")[0],
+    minor = ECLIPSE_CYCLONEDDS_VERSION.split(".")[1],
+    patch = ECLIPSE_CYCLONEDDS_VERSION.split(".")[2],
+    version = ECLIPSE_CYCLONEDDS_VERSION,
 )
 
 _ddsrt_features_base = [
@@ -293,6 +294,7 @@ cc_library(
             "-Wl:bcrypt.lib",
         ],
     }),
+    alwayslink = True,
     visibility = ["//visibility:public"],
 )
 
@@ -511,6 +513,7 @@ _ddsi_base_srcs = [
     "src/core/ddsi/src/ddsi_lifespan.c",
     "src/core/ddsi/src/ddsi_security_exchange.c",
     "src/core/ddsi/src/ddsi_eth.h",
+    "src/core/ddsi/src/ddsi_security_msg.c"
 ]
 
 _ddsc_base_srcs = [
@@ -581,12 +584,14 @@ cc_library(
     name = "ddsc",
     srcs = _ddsi_base_srcs + _ddsc_base_srcs + _security_core_base_srcs,
     hdrs = _ddsi_base_hdrs + _ddsc_base_hdrs + _security_api_base_hdrs + _security_core_base_hdrs,
-    copts = ["-Iexternal/cyclonedds/src/core/ddsc/src"],
+    copts = ["-Iexternal/eclipse_cyclonedds/src/core/ddsc/src"],
     includes = [
         "src/core/ddsc/include",
         "src/core/ddsi/include",
         "src/security/api/include",
         "src/security/core/include",
     ],
+    visibility = ["//visibility:public"],
+    alwayslink = True,
     deps = [":ddsrt"],
 )

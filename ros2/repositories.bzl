@@ -7,6 +7,11 @@ ROS2_RCUTILS_VERSION = "4.0.2"
 ROS2_RCPPUTILS_VERSION = "2.2.1"
 ROS2_ROSIDL_VERSION = "2.2.2"
 ROS2_ROSIDL_TYPESUPPORT_VERSION = "1.2.1"
+ROS2_UNIQUE_IDENTIFIER_MSGS_VERSION = "2.2.1"
+ROS2_RCL_INTERFACES_VERSION = "1.0.3"
+ROS2_RMW_VERSION = "3.3.1"
+ROS2_RMW_DDS_COMMON_VERSION = "1.2.1"
+ROS2_RMW_CYCLONEDDS_VERSION = "0.22.5"
 
 def ros2bazel_repositories():
     """
@@ -85,4 +90,49 @@ def ros2bazel_repositories():
         sha256 = "71ad259062d9e59301d5561bcb1102de85e914156c15a489eef8f0df6f5d7910",
         strip_prefix = "rosidl_typesupport-%s" % ROS2_ROSIDL_TYPESUPPORT_VERSION,
         urls = ["https://github.com/ros2/rosidl_typesupport/archive/refs/tags/%s.zip" % ROS2_ROSIDL_TYPESUPPORT_VERSION],
+    )
+
+    maybe(
+        http_archive,
+        name = "ros2_unique_identifier_msgs",
+        build_file = "@com_github_camearle20_ros2bazel//:repository/ros2_unique_identifier_msgs.BUILD",
+        strip_prefix = "unique_identifier_msgs-%s" % ROS2_UNIQUE_IDENTIFIER_MSGS_VERSION,
+        sha256 = "a5d0c75b6fbff05259e16bb34af37fd74fa2bb9f67193a10e2c39a28c7f7eb69",
+        urls = ["https://github.com/ros2/unique_identifier_msgs/archive/refs/tags/%s.zip" % ROS2_UNIQUE_IDENTIFIER_MSGS_VERSION],
+    )
+
+    maybe(
+        http_archive,
+        name = "ros2_rcl_interfaces",
+        build_file = "@com_github_camearle20_ros2bazel//:repository/ros2_rcl_interfaces.BUILD",
+        sha256 = "14f396a2b011ea7b1947937a4658ff319edfa4c2d9dd6262bbfba11a7d487833",
+        strip_prefix = "rcl_interfaces-%s" % ROS2_RCL_INTERFACES_VERSION,
+        urls = ["https://github.com/ros2/rcl_interfaces/archive/refs/tags/%s.zip" % ROS2_RCL_INTERFACES_VERSION],
+    )
+
+    maybe(
+        http_archive,
+        name = "ros2_rmw",
+        build_file = "@com_github_camearle20_ros2bazel//:repository/ros2_rmw.BUILD",
+        sha256 = "4afb82225c28395cb3a2a8f82052735a7594af394eda7b6cb3c4fbd094893f9c",
+        strip_prefix = "rmw-%s" % ROS2_RMW_VERSION,
+        urls = ["https://github.com/ros2/rmw/archive/refs/tags/%s.zip" % ROS2_RMW_VERSION],
+    )
+
+    maybe(
+        http_archive,
+        name = "ros2_rmw_dds_common",
+        build_file = "@com_github_camearle20_ros2bazel//:repository/ros2_rmw_dds_common.BUILD",
+        sha256 = "d5f65926081423ff9a58cc79d54ad2d26479b2f82a945ca70ead292e305afd31",
+        strip_prefix = "rmw_dds_common-%s" % ROS2_RMW_DDS_COMMON_VERSION,
+        urls = ["https://github.com/ros2/rmw_dds_common/archive/refs/tags/%s.zip" % ROS2_RMW_DDS_COMMON_VERSION],
+    )
+
+    maybe(
+        http_archive,
+        name = "ros2_rmw_cyclonedds",
+        build_file = "@com_github_camearle20_ros2bazel//:repository/ros2_rmw_cyclonedds.BUILD",
+        sha256 = "c9bdd148d46f592f5b6f304756f218768cfdfa0d08bc6bf0941a3e5a0b333f09",
+        strip_prefix = "rmw_cyclonedds-%s" % ROS2_RMW_CYCLONEDDS_VERSION,
+        urls = ["https://github.com/ros2/rmw_cyclonedds/archive/refs/tags/%s.zip" % ROS2_RMW_CYCLONEDDS_VERSION],
     )

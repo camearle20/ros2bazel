@@ -210,6 +210,7 @@ py_binary(
         ":cli",
         ":cmake",
         ":parser",
+        ":generator_cpp",
         "@ament_index//:index_python",
     ],
 )

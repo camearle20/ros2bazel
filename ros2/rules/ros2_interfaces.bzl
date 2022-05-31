@@ -64,7 +64,7 @@ def _get_output_dir(ctx, label):
     """
     Produces the base output directory for IDL and generated source files given the rule context.
     """
-    return "%s/%s/%s" % (ctx.genfiles_dir.path, label.package, label.name)
+    return paths.join(ctx.genfiles_dir.path, label.workspace_root, label.package, label.name)
 
 def _ros2_interface_library_impl(ctx):
     idl_files = []
@@ -310,3 +310,24 @@ ros2_cpp_interface_library = rule(
         ),
     },
 )
+
+def ros2_all_interface_libraries(name, srcs, deps = [], visibility=None):
+    """
+    Macro for creating an interface library and all supported language bindings.
+
+    Creates: 
+    ros2_interface_library: [name]
+    ros2_cpp_interface_library: [name]_cpp
+    """
+    ros2_interface_library(
+        name = name,
+        srcs = srcs,
+        deps = deps,
+        visibility = visibility
+    )
+
+    ros2_cpp_interface_library(
+        name = name + "_cpp",
+        deps = [":" + name],
+        visibility = visibility
+    )
