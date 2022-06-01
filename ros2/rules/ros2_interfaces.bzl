@@ -21,6 +21,29 @@ _TYPESUPPORT_INTROSPECTION_CPP_OUTPUT_SRCS = [
     "detail/%s__type_support.cpp",
 ]
 
+_C_OUTPUT_HDRS = [
+    "%s.h",
+    "detail/%s__functions.h",
+    "detail/%s__struct.h",
+    "detail/%s__type_support.h",
+]
+
+_C_OUTPUT_SRCS = [
+    "detail/%s__functions.c",
+]
+
+_TYPESUPPORT_C_OUTPUT_SRCS = [
+    "%s__type_support.cpp",
+]
+
+_TYPESUPPORT_INTROSPECTION_C_OUTPUT_HDRS = [
+    "detail/%s__rosidl_typesupport_introspection_c.h",
+]
+
+_TYPESUPPORT_INTROSPECTION_C_OUTPUT_SRCS = [
+    "detail/%s__type_support.c",
+]
+
 Ros2InterfaceInfo = provider(
     "Provides sources, IDLs, and dependencies for a ROS2 interface library.",
     fields = [
@@ -29,7 +52,7 @@ Ros2InterfaceInfo = provider(
     ],
 )
 
-Ros2CppGeneratorAspectInfo = provider(
+Ros2SourceGeneratorAspectInfo = provider(
     "Provides output files for the C++ generator aspect",
     fields = ["cc_info"],
 )
@@ -60,11 +83,18 @@ def to_snake_case(not_snake_case):
 
     return result
 
-def _get_output_dir(ctx, label):
+def _get_output_dir(ctx, label, gen_language = None):
     """
     Produces the base output directory for IDL and generated source files given the rule context.
     """
-    return paths.join(ctx.genfiles_dir.path, label.workspace_root, label.package, label.name)
+    if gen_language:
+        return paths.join(ctx.genfiles_dir.path, label.workspace_root, label.package, label.name, gen_language, label.name)
+    else:
+        return paths.join(ctx.genfiles_dir.path, label.workspace_root, label.package, label.name)
+
+def _get_include_dir(ctx, label, gen_language):
+    return paths.join(ctx.genfiles_dir.path, label.workspace_root, label.package, label.name, gen_language)
+
 
 def _ros2_interface_library_impl(ctx):
     idl_files = []
@@ -127,7 +157,7 @@ ros2_interface_library = rule(
     },
 )
 
-def _run_cmake_generator(ctx, package_name, output_dir, info, generator, templates, outputs, extra_args = {}):
+def _run_cmake_generator(ctx, package_name, output_dir, info, generator, templates, outputs, language, visibility_control_template = None, extra_args = {}):
     # Check that all templates are in the same directory (this is required by the generator)
     template_dir = templates[0].dirname
     for template in templates:
@@ -158,7 +188,7 @@ def _run_cmake_generator(ctx, package_name, output_dir, info, generator, templat
         extension = extension.strip(".")
         snake_case_root = to_snake_case(root)
         for out in outputs:
-            relative_file = "%s/%s/%s" % (package_name, extension, out % snake_case_root)
+            relative_file = "%s/%s/%s/%s/%s" % (package_name, language, package_name, extension, out % snake_case_root)
             generator_outputs[relative_file] = ctx.actions.declare_file(relative_file)
 
     # Run the generator
@@ -169,45 +199,74 @@ def _run_cmake_generator(ctx, package_name, output_dir, info, generator, templat
         arguments = [cmd_args],
     )
 
+    if visibility_control_template:
+        root, _ = paths.split_extension(visibility_control_template.basename)
+
+        # Filename is [name].h.in, so root will be [name].h
+        filename = "%s/%s/%s/msg/%s" % (package_name, language, package_name, root)
+        visibility_control_h = ctx.actions.declare_file(filename)
+        generator_outputs[filename] = visibility_control_h
+
+        ctx.actions.expand_template(
+            template = visibility_control_template,
+            output = visibility_control_h,
+            substitutions = {
+                "@PROJECT_NAME@": package_name,
+                "@PROJECT_NAME_UPPER@": package_name.upper(),
+            },
+        )
+
     return generator_outputs
 
 def _cpp_generator_aspect_impl(target, ctx):
     package_name = target.label.name
     target_info = target[Ros2InterfaceInfo].info
-    output_dir = _get_output_dir(ctx, target.label)
+    output_dir = _get_output_dir(ctx, target.label, ctx.attr._language)
+    include_dir = _get_include_dir(ctx, target.label, ctx.attr._language)
+
+    has_visibility_control = ctx.attr._has_visibility_control
+    interface_visibility_template = ctx.file._interface_visibility_template if has_visibility_control else None
+    typesupport_visibility_template = ctx.file._typesupport_visibility_template if has_visibility_control else None
+    typesupport_introspection_visibility_template = ctx.file._typesupport_introspection_visibility_template if has_visibility_control else None
 
     # Run the generators needed for cpp
     outs = dicts.add(
         _run_cmake_generator(
-            # cpp
+            # c or cpp
             ctx = ctx,
             package_name = package_name,
             output_dir = output_dir,
             info = target_info,
             generator = ctx.executable._interface_generator,
             templates = ctx.files._interface_generator_templates,
-            outputs = _CPP_OUTPUT_HDRS,
+            outputs = ctx.attr._interface_outputs,
+            language = ctx.attr._language,
+            visibility_control_template = interface_visibility_template,
         ),
         _run_cmake_generator(
-            # typesupport
+            # typesupport_c or typesupport_cpp
             ctx = ctx,
             package_name = package_name,
             output_dir = output_dir,
             info = target_info,
             generator = ctx.executable._typesupport_generator,
             templates = ctx.files._typesupport_generator_templates,
-            outputs = _TYPESUPPORT_CPP_OUTPUT_SRCS,
-            extra_args = {"--typesupports": "rosidl_typesupport_introspection_cpp"},
+            outputs = ctx.attr._typesupport_outputs,
+            language = ctx.attr._language,
+            extra_args = {"--typesupports": ctx.attr._typesupport_type},
+            visibility_control_template = typesupport_visibility_template,
         ),
         _run_cmake_generator(
-            # typesupport_introspection
+            # typesupport_introspection_c or typesupport_introspection_cpp
             ctx = ctx,
             package_name = package_name,
             output_dir = output_dir,
             info = target_info,
             generator = ctx.executable._typesupport_introspection_generator,
             templates = ctx.files._typesupport_introspection_generator_templates,
-            outputs = _TYPESUPPORT_INTROSPECTION_CPP_OUTPUT_HDRS + _TYPESUPPORT_INTROSPECTION_CPP_OUTPUT_SRCS,
+            outputs = ctx.attr._typesupport_introspection_outputs,
+            language = ctx.attr._language,
+            visibility_control_template = typesupport_introspection_visibility_template,
         ),
     )
 
@@ -223,8 +282,8 @@ def _cpp_generator_aspect_impl(target, ctx):
     srcs = [f for f in outs.values() if f.extension.startswith("c")]
     hdrs = [f for f in outs.values() if f.extension.startswith("h")]
 
-    dep_compilation_contexts = [dep[CcInfo].compilation_context for dep in ctx.attr._rosidl_deps] + [dep[Ros2CppGeneratorAspectInfo].cc_info.compilation_context for dep in ctx.rule.attr.deps]
-    dep_linking_contexts = [dep[CcInfo].linking_context for dep in ctx.attr._rosidl_deps] + [dep[Ros2CppGeneratorAspectInfo].cc_info.linking_context for dep in ctx.rule.attr.deps]
+    dep_compilation_contexts = [dep[CcInfo].compilation_context for dep in ctx.attr._rosidl_deps] + [dep[Ros2SourceGeneratorAspectInfo].cc_info.compilation_context for dep in ctx.rule.attr.deps]
+    dep_linking_contexts = [dep[CcInfo].linking_context for dep in ctx.attr._rosidl_deps] + [dep[Ros2SourceGeneratorAspectInfo].cc_info.linking_context for dep in ctx.rule.attr.deps]
 
     compilation_context, compilation_outputs = cc_common.compile(
         actions = ctx.actions,
@@ -232,9 +291,9 @@ def _cpp_generator_aspect_impl(target, ctx):
         cc_toolchain = cc_toolchain,
         srcs = srcs,
         public_hdrs = hdrs,
-        includes = [ctx.genfiles_dir.path + "/" + target.label.package],
+        includes = [include_dir],
         compilation_contexts = dep_compilation_contexts,
-        name = package_name,
+        name = package_name + "_" + ctx.attr._language,
     )
 
     linking_context, _ = cc_common.create_linking_context_from_compilation_outputs(
@@ -242,17 +301,17 @@ def _cpp_generator_aspect_impl(target, ctx):
         feature_configuration = feature_config,
         cc_toolchain = cc_toolchain,
         compilation_outputs = compilation_outputs,
-        name = package_name,
+        name = package_name + "_" + ctx.attr._language,
         linking_contexts = dep_linking_contexts,
         alwayslink = True,  # TODO: determine if this is necessary (do introspection functions get called directly or through pointers?)
     )
 
     cc_info = CcInfo(
         compilation_context = compilation_context,
-        linking_context = linking_context
+        linking_context = linking_context,
     )
 
-    return [Ros2CppGeneratorAspectInfo(cc_info = cc_info)]
+    return [Ros2SourceGeneratorAspectInfo(cc_info = cc_info)]
 
 cpp_generator_aspect = aspect(
     implementation = _cpp_generator_aspect_impl,
@@ -289,6 +348,71 @@ cpp_generator_aspect = aspect(
                 "@ros2_rosidl_typesupport//:rosidl_typesupport_cpp",
             ],
         ),
+        "_language": attr.string(default = "cpp"),
+        "_interface_outputs": attr.string_list(default = _CPP_OUTPUT_HDRS),
+        "_typesupport_outputs": attr.string_list(default = _TYPESUPPORT_CPP_OUTPUT_SRCS),
+        "_typesupport_introspection_outputs": attr.string_list(default = _TYPESUPPORT_INTROSPECTION_CPP_OUTPUT_HDRS + _TYPESUPPORT_INTROSPECTION_CPP_OUTPUT_SRCS),
+        "_typesupport_type": attr.string(default = "rosidl_typesupport_introspection_cpp"),
+        "_has_visibility_control": attr.bool(default = False),
+        "_cc_toolchain": attr.label(default = "@bazel_tools//tools/cpp:current_cc_toolchain"),
+    },
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    fragments = ["cpp"],
+)
+
+c_generator_aspect = aspect(
+    implementation = _cpp_generator_aspect_impl,
+    attr_aspects = ["deps"],
+    attrs = {
+        "_interface_generator": attr.label(
+            default = "@ros2_rosidl//:generator_c",
+            executable = True,
+            cfg = "exec",
+        ),
+        "_interface_generator_templates": attr.label(
+            default = "@ros2_rosidl//:generator_c_templates",
+        ),
+        "_typesupport_generator": attr.label(
+            default = "@ros2_rosidl_typesupport//:typesupport_generator_c",
+            executable = True,
+            cfg = "exec",
+        ),
+        "_typesupport_generator_templates": attr.label(
+            default = "@ros2_rosidl_typesupport//:typesupport_generator_c_templates",
+        ),
+        "_typesupport_introspection_generator": attr.label(
+            default = "@ros2_rosidl//:typesupport_introspection_c_generator",
+            executable = True,
+            cfg = "exec",
+        ),
+        "_typesupport_introspection_generator_templates": attr.label(
+            default = "@ros2_rosidl//:typesupport_introspection_c_generator_templates",
+        ),
+        "_rosidl_deps": attr.label_list(
+            default = [
+                "@ros2_rosidl//:rosidl_runtime_c",
+                "@ros2_rosidl//:rosidl_typesupport_introspection_c",
+                "@ros2_rosidl_typesupport//:rosidl_typesupport_c",
+            ],
+        ),
+        "_language": attr.string(default = "c"),
+        "_interface_outputs": attr.string_list(default = _C_OUTPUT_HDRS + _C_OUTPUT_SRCS),
+        "_typesupport_outputs": attr.string_list(default = _TYPESUPPORT_C_OUTPUT_SRCS),
+        "_typesupport_introspection_outputs": attr.string_list(default = _TYPESUPPORT_INTROSPECTION_C_OUTPUT_HDRS + _TYPESUPPORT_INTROSPECTION_C_OUTPUT_SRCS),
+        "_typesupport_type": attr.string(default = "rosidl_typesupport_introspection_c"),
+        "_has_visibility_control": attr.bool(default = True),
+        "_interface_visibility_template": attr.label(
+            default = "@ros2_rosidl//:generator_c_visibility_template",
+            allow_single_file = True,
+        ),
+        "_typesupport_visibility_template": attr.label(
+            default = "@ros2_rosidl_typesupport//:typesupport_generator_c_visibility_template",
+            allow_single_file = True,
+        ),
+        "_typesupport_introspection_visibility_template": attr.label(
+            default = "@ros2_rosidl//:typesupport_introspection_c_generator_visibility_template",
+            allow_single_file = True,
+        ),
         "_cc_toolchain": attr.label(default = "@bazel_tools//tools/cpp:current_cc_toolchain"),
     },
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
@@ -296,7 +420,7 @@ cpp_generator_aspect = aspect(
 )
 
 def _cpp_generator_impl(ctx):
-    cc_infos = [dep[Ros2CppGeneratorAspectInfo].cc_info for dep in ctx.attr.deps]
+    cc_infos = [dep[Ros2SourceGeneratorAspectInfo].cc_info for dep in ctx.attr.deps]
     cc_info = cc_common.merge_cc_infos(direct_cc_infos = cc_infos)
     return [cc_info]
 
@@ -311,11 +435,22 @@ ros2_cpp_interface_library = rule(
     },
 )
 
-def ros2_all_interface_libraries(name, srcs, deps = [], visibility=None):
+ros2_c_interface_library = rule(
+    implementation = _cpp_generator_impl,
+    attrs = {
+        "deps": attr.label_list(
+            mandatory = True,
+            aspects = [c_generator_aspect],
+            providers = [Ros2InterfaceInfo],
+        ),
+    },
+)
+
+def ros2_all_interface_libraries(name, srcs, deps = [], visibility = None):
     """
     Macro for creating an interface library and all supported language bindings.
 
-    Creates: 
+    Creates:
     ros2_interface_library: [name]
     ros2_cpp_interface_library: [name]_cpp
     """
@@ -323,11 +458,17 @@ def ros2_all_interface_libraries(name, srcs, deps = [], visibility=None):
         name = name,
         srcs = srcs,
         deps = deps,
-        visibility = visibility
+        visibility = visibility,
+    )
+
+    ros2_c_interface_library(
+        name = name + "_c",
+        deps = [":" + name],
+        visibility = visibility,
     )
 
     ros2_cpp_interface_library(
         name = name + "_cpp",
         deps = [":" + name],
-        visibility = visibility
+        visibility = visibility,
     )
