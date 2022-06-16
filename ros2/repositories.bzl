@@ -58,6 +58,7 @@ def ros2bazel_repositories():
     maybe(
         http_archive,
         name = "spdlog",
+        sha256 = "7be28ff05d32a8a11cfba94381e820dd2842835f7f319f843993101bcab44b66",
         build_file = "@com_github_camearle20_ros2bazel//:repository/spdlog.BUILD",
         strip_prefix = "spdlog-%s" % SPDLOG_VERSION,
         urls = ["https://github.com/gabime/spdlog/archive/refs/tags/v%s.zip" % SPDLOG_VERSION],
