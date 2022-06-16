@@ -92,6 +92,7 @@ cc_library(
         ":rclcpp_interfaces",
     ],
     includes = ["rclcpp/include"],
+    visibility = ["//visibility:public"],
     deps = [
         "@ament_index//:index_cpp",
         "@ros2_libstatistics_collector//:libstatistics_collector",
@@ -109,5 +110,39 @@ cc_library(
         "@ros2_rosidl_typesupport//:rosidl_typesupport_cpp",
         "@ros2_tracing//:tracetools",
     ],
+)
+
+cc_library(
+    name = "rclcpp_action",
+    srcs = glob(["rclcpp_action/src/**/*.cpp"]),
+    hdrs = glob(["rclcpp_action/include/**/*.hpp"]),
+    includes = ["rclcpp_action/include"],
     visibility = ["//visibility:public"],
+    deps = [
+        ":rclcpp",
+        "@ros2_rcl//:rcl_action",
+        "@ros2_rcl_interfaces//:action_msgs_cpp",
+        "@ros2_rosidl//:rosidl_runtime_c",
+    ],
+)
+
+cc_library(
+    name = "rclcpp_lifecycle",
+    srcs = glob([
+        "rclcpp_lifecycle/src/**/*.cpp",
+        "rclcpp_lifecycle/src/**/*.hpp",
+    ]),
+    hdrs = glob([
+        "rclcpp_lifecycle/include/**/*.hpp",
+        "rclcpp_lifecycle/include/**/*.h",
+    ]),
+    includes = ["rclcpp_lifecycle/include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":rclcpp",
+        "@ros2_rcl//:rcl_lifecycle",
+        "@ros2_rcl_interfaces//:lifecycle_msgs_cpp",
+        "@ros2_rmw//:rmw",
+        "@ros2_rosidl_typesupport//:rosidl_typesupport_cpp",
+    ],
 )
